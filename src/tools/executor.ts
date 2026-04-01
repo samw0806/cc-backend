@@ -100,7 +100,7 @@ function executeFileEdit(input: any, cwd: string, allowedPaths?: string[]): Tool
     }
   }
 
-  writeFileSync(absPath, content.replace(old_string, new_string), 'utf-8')
+  writeFileSync(absPath, content.split(old_string).join(new_string), 'utf-8')
   return { success: true, output: `File edited: ${absPath}` }
 }
 
@@ -139,14 +139,14 @@ async function executeGrep(input: any, cwd: string, allowedPaths?: string[]): Pr
     if (input['-A']) args.push('-A', String(input['-A']))
     if (input['-B']) args.push('-B', String(input['-B']))
     if (input['-C']) args.push('-C', String(input['-C']))
-    args.push(input.pattern, searchDir)
+    args.push('--', input.pattern, searchDir)
   } else {
     args.push('-r', '-n')
     if (input['-i'] || input.case_insensitive) args.push('-i')
     if (input.output_mode === 'files_with_matches' || input.files_with_matches) args.push('-l')
     if (input['-A']) args.push(`-A${input['-A']}`)
     if (input['-B']) args.push(`-B${input['-B']}`)
-    args.push(input.pattern, searchDir)
+    args.push('--', input.pattern, searchDir)
   }
 
   const result = await runCommand(cmd, args, cwd, 15000)
@@ -193,6 +193,31 @@ async function executeWebFetch(input: any): Promise<ToolResult> {
   // 只允许 HTTP/HTTPS
   if (!url.startsWith('http://') && !url.startsWith('https://')) {
     return { success: false, output: '', error: 'Only http/https URLs are supported' }
+  }
+
+  // 拒绝内网 / loopback 地址（防止 SSRF）
+  let parsedUrl: URL
+  try {
+    parsedUrl = new URL(url)
+  } catch {
+    return { success: false, output: '', error: 'Invalid URL' }
+  }
+  const hostname = parsedUrl.hostname.toLowerCase()
+  const ssrfBlockPatterns = [
+    /^localhost$/,
+    /^127\./,
+    /^0\.0\.0\.0$/,
+    /^::1$/,
+    /^\[::1\]$/,
+    /^10\./,
+    /^172\.(1[6-9]|2[0-9]|3[01])\./,
+    /^192\.168\./,
+    /^169\.254\./,  // link-local (AWS metadata等)
+    /^fc00:/,       // IPv6 ULA
+    /^fe80:/        // IPv6 link-local
+  ]
+  if (ssrfBlockPatterns.some(p => p.test(hostname))) {
+    return { success: false, output: '', error: `Blocked: requests to private/loopback addresses are not allowed` }
   }
 
   const response = await fetch(url, {

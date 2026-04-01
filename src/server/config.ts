@@ -30,7 +30,8 @@ export function loadServerConfig(): ServerConfig {
     forcePermissions: configFile.forcePermissions,
     maxConcurrentTools: configFile.maxConcurrentTools,
     enableFileCache: configFile.enableFileCache,
-    permissionRules: configFile.permissionRules || []
+    permissionRules: configFile.permissionRules || [],
+    model: process.env.MODEL || configFile.model
   }
 
   return cachedConfig

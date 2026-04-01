@@ -111,11 +111,12 @@ export type StreamChunk =
 
 export async function* streamChat(
   messages: Anthropic.MessageParam[],
-  systemPrompt?: string
+  systemPrompt?: string,
+  model?: string
 ): AsyncGenerator<StreamChunk> {
   try {
     const stream = client.messages.stream({
-      model: 'claude-opus-4-5',
+      model: model ?? 'claude-opus-4-6',
       max_tokens: 8192,
       messages,
       tools: TOOLS,

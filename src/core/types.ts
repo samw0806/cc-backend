@@ -12,6 +12,7 @@ export type ServerConfig = {
   maxConcurrentTools: number
   enableFileCache: boolean
   permissionRules: PermissionRule[]
+  model?: string
 }
 
 export type PermissionRule = {
@@ -31,6 +32,8 @@ export type SessionContext = {
   wsConnections: Set<any>
   messages: any[]
   abortController?: AbortController
+  /** 串行消息处理锁：同一会话的消息必须依次执行 */
+  processingQueue: Promise<void>
 }
 
 // API 消息类型

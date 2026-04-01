@@ -37,6 +37,17 @@ export class AgentServer {
     this.httpServer.on('upgrade', (req, socket, head) => {
       const { pathname, query } = parse(req.url!, true)
       if (pathname === '/ws') {
+        // 检查 Auth Token（与 HTTP 路由一致）
+        const config = getConfig()
+        if (config.authToken) {
+          const auth = req.headers['authorization']
+          if (!auth || auth !== `Bearer ${config.authToken}`) {
+            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+            socket.destroy()
+            return
+          }
+        }
+
         const sessionId = query.session as string
         if (!sessionId || !this.sessionManager.getSession(sessionId)) {
           socket.write('HTTP/1.1 404 Not Found\r\n\r\n')

@@ -39,7 +39,8 @@ export class SessionManager {
       createdAt: Date.now(),
       lastActiveAt: Date.now(),
       wsConnections: new Set(),
-      messages
+      messages,
+      processingQueue: Promise.resolve()
     }
 
     this.sessions.set(sessionId, context)
@@ -90,7 +91,7 @@ export class SessionManager {
   }
 
   /**
-   * 处理用户消息：运行 Claude 对话循环（含工具执行 + 权限等待）
+   * 处理用户消息：串行入队，防止同 session 并发
    */
   async processMessage(
     sessionId: string,
@@ -104,12 +105,29 @@ export class SessionManager {
       return
     }
 
+    // 串行队列：等待上一条消息处理完成后再处理本条
+    session.processingQueue = session.processingQueue
+      .then(() => this._runMessageLoop(session, userMessage, broadcast, permissionHandler))
+      .catch(() => {})
+    return session.processingQueue
+  }
+
+  /**
+   * 实际的对话循环（在队列中串行执行）
+   */
+  private async _runMessageLoop(
+    session: SessionContext,
+    userMessage: string,
+    broadcast: (msg: SDKMessage) => void,
+    permissionHandler?: RemotePermissionHandler
+  ): Promise<void> {
+
     const config = loadServerConfig()
 
     // 添加用户消息到历史 + 写盘
     const userMsg = { role: 'user', content: userMessage }
     session.messages.push(userMsg)
-    await appendMessage(sessionId, userMsg)
+    await appendMessage(session.id, userMsg)
 
     const MAX_TURNS = 10
     let turn = 0
@@ -121,7 +139,7 @@ export class SessionManager {
       const currentAssistantContent: Anthropic.ContentBlock[] = []
       let stopReason = 'end_turn'
 
-      for await (const chunk of streamChat(session.messages as Anthropic.MessageParam[])) {
+      for await (const chunk of streamChat(session.messages as Anthropic.MessageParam[], undefined, config.model)) {
         if (chunk.type === 'text') {
           const last = currentAssistantContent[currentAssistantContent.length - 1]
           if (last && last.type === 'text') {
@@ -157,7 +175,7 @@ export class SessionManager {
       if (currentAssistantContent.length > 0) {
         const assistantMsg = { role: 'assistant', content: currentAssistantContent }
         session.messages.push(assistantMsg)
-        await appendMessage(sessionId, assistantMsg)
+        await appendMessage(session.id, assistantMsg)
       }
 
       if (stopReason !== 'tool_use') {
@@ -199,7 +217,13 @@ export class SessionManager {
               reason: decision.reason
             })
 
-            const behavior = await this.waitForPermission(sessionId, requestId, 60000)
+            let behavior: 'allow' | 'deny'
+            try {
+            behavior = await this.waitForPermission(session.id, requestId, 60000)
+            } catch {
+              // session 被销毁时 reject，直接终止本轮循环
+              return
+            }
 
             if (behavior === 'deny') {
               toolOutput = 'Permission denied by user'
@@ -237,7 +261,7 @@ export class SessionManager {
 
       const toolResultMsg = { role: 'user', content: toolResultContent }
       session.messages.push(toolResultMsg)
-      await appendMessage(sessionId, toolResultMsg)
+      await appendMessage(session.id, toolResultMsg)
     }
 
     broadcast({ type: 'error', error: `Reached max turns (${MAX_TURNS})` })
