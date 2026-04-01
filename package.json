@@ -1,0 +1,23 @@
+{
+  "name": "claude-agent-server",
+  "version": "0.1.0",
+  "description": "Claude Code Agent Service Backend",
+  "type": "module",
+  "scripts": {
+    "dev": "node --loader ts-node/esm src/server/index.ts",
+    "dev:bun": "bun run src/server/index.ts",
+    "build": "tsc",
+    "start": "node dist/server/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.32.1",
+    "glob": "^10.4.0",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/ws": "^8.5.0",
+    "ts-node": "^10.9.0",
+    "typescript": "^5.0.0"
+  }
+}

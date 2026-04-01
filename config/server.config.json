@@ -1,0 +1,23 @@
+{
+  "port": 3000,
+  "host": "0.0.0.0",
+  "authToken": "dev-token-change-in-production",
+  "maxSessions": 100,
+  "sessionTimeoutMs": 1800000,
+  "workspaceRoot": "/tmp/claude-workspaces",
+  "allowedPaths": [
+    "/tmp/claude-workspaces",
+    "/home"
+  ],
+  "defaultPermissionMode": "default",
+  "forcePermissions": true,
+  "maxConcurrentTools": 10,
+  "enableFileCache": true,
+  "permissionRules": [
+    {
+      "toolPattern": "^(Read|Glob|Grep)$",
+      "behavior": "allow",
+      "reason": "只读工具自动允许"
+    }
+  ]
+}
