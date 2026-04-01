@@ -8,49 +8,71 @@ const client = new Anthropic({
 export const TOOLS: Anthropic.Tool[] = [
   {
     name: 'Read',
-    description: 'Read the contents of a file at the given path',
+    description: 'Read the contents of a file. Returns line-numbered output.',
     input_schema: {
       type: 'object',
       properties: {
-        file_path: {
-          type: 'string',
-          description: 'Absolute path to the file to read'
-        }
+        file_path: { type: 'string', description: 'Absolute path to the file' },
+        offset: { type: 'number', description: 'Start line (1-based, default 1)' },
+        limit: { type: 'number', description: 'Max lines to return (default 2000)' }
       },
       required: ['file_path']
     }
   },
   {
     name: 'Write',
-    description: 'Write content to a file at the given path (creates or overwrites)',
+    description: 'Write content to a file (creates or overwrites). Prefer Edit for modifying existing files.',
     input_schema: {
       type: 'object',
       properties: {
-        file_path: {
-          type: 'string',
-          description: 'Absolute path to the file to write'
-        },
-        content: {
-          type: 'string',
-          description: 'Content to write to the file'
-        }
+        file_path: { type: 'string', description: 'Absolute path to the file' },
+        content: { type: 'string', description: 'Full content to write' }
       },
       required: ['file_path', 'content']
     }
   },
   {
-    name: 'Glob',
-    description: 'Find files matching a glob pattern',
+    name: 'Edit',
+    description: 'Perform an exact string replacement in a file. old_string must appear exactly once.',
     input_schema: {
       type: 'object',
       properties: {
-        pattern: {
+        file_path: { type: 'string', description: 'Absolute path to the file' },
+        old_string: { type: 'string', description: 'Exact text to find (must be unique in file)' },
+        new_string: { type: 'string', description: 'Text to replace it with' }
+      },
+      required: ['file_path', 'old_string', 'new_string']
+    }
+  },
+  {
+    name: 'Glob',
+    description: 'Find files matching a glob pattern, sorted by modification time.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'Glob pattern (e.g. "**/*.ts")' },
+        path: { type: 'string', description: 'Directory to search in (default: cwd)' }
+      },
+      required: ['pattern']
+    }
+  },
+  {
+    name: 'Grep',
+    description: 'Search file contents using regex. Uses ripgrep when available.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        pattern: { type: 'string', description: 'Regex pattern to search for' },
+        path: { type: 'string', description: 'Directory or file to search (default: cwd)' },
+        glob: { type: 'string', description: 'File glob filter (e.g. "*.ts")' },
+        '-i': { type: 'boolean', description: 'Case insensitive search' },
+        '-A': { type: 'number', description: 'Lines of context after match' },
+        '-B': { type: 'number', description: 'Lines of context before match' },
+        '-C': { type: 'number', description: 'Lines of context around match' },
+        output_mode: {
           type: 'string',
-          description: 'Glob pattern to match files (e.g. "**/*.ts")'
-        },
-        path: {
-          type: 'string',
-          description: 'Directory to search in (optional, defaults to cwd)'
+          enum: ['content', 'files_with_matches'],
+          description: 'content shows matching lines, files_with_matches shows only file paths'
         }
       },
       required: ['pattern']
@@ -58,20 +80,25 @@ export const TOOLS: Anthropic.Tool[] = [
   },
   {
     name: 'Bash',
-    description: 'Execute a shell command in the working directory',
+    description: 'Execute a shell command. Avoid destructive commands (rm -rf, sudo, etc).',
     input_schema: {
       type: 'object',
       properties: {
-        command: {
-          type: 'string',
-          description: 'The shell command to execute'
-        },
-        timeout: {
-          type: 'number',
-          description: 'Timeout in milliseconds (default 30000)'
-        }
+        command: { type: 'string', description: 'Shell command to execute' },
+        timeout: { type: 'number', description: 'Timeout in ms (default 30000)' }
       },
       required: ['command']
+    }
+  },
+  {
+    name: 'WebFetch',
+    description: 'Fetch a URL and return its text content (HTML is converted to plain text).',
+    input_schema: {
+      type: 'object',
+      properties: {
+        url: { type: 'string', description: 'HTTP/HTTPS URL to fetch' }
+      },
+      required: ['url']
     }
   }
 ]

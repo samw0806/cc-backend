@@ -4,6 +4,7 @@ import { parse } from 'url'
 import { SessionManager } from '../session/SessionManager.js'
 import { RemotePermissionHandler } from '../permissions/RemotePermissionHandler.js'
 import { loadServerConfig, getConfig } from '../config.js'
+import { loadMessages, listPersistedSessions } from '../../services/sessionStorage.js'
 import { mkdirSync, existsSync } from 'fs'
 
 export class AgentServer {
@@ -69,7 +70,7 @@ export class AgentServer {
     console.log('[Server] Stopped')
   }
 
-  // ─── WebSocket ────────────────────────────────────────────────────────────
+  // ─── WebSocket ─────────────────────────────────────────────────────────────
 
   private onWsConnect(ws: WebSocket, sessionId: string) {
     console.log(`[WS] connected  session=${sessionId}`)
@@ -86,8 +87,13 @@ export class AgentServer {
     ws.on('message', async (data) => {
       try {
         const msg = JSON.parse(data.toString())
+
         if (msg.type === 'user_message') {
           await this.handleUserMessage(sessionId, msg.content)
+        } else if (msg.type === 'control_response') {
+          // 将权限响应转发给 SessionManager
+          const behavior = msg.response?.behavior === 'allow' ? 'allow' : 'deny'
+          this.sessionManager.resolvePermission(sessionId, msg.request_id, behavior)
         } else {
           ws.send(JSON.stringify({ type: 'error', error: `Unknown message type: ${msg.type}` }))
         }
@@ -122,7 +128,7 @@ export class AgentServer {
     }
   }
 
-  // ─── HTTP ─────────────────────────────────────────────────────────────────
+  // ─── HTTP ──────────────────────────────────────────────────────────────────
 
   private async handleRequest(req: any, res: any) {
     const config = getConfig()
@@ -143,8 +149,11 @@ export class AgentServer {
       }
     }
 
+    // 路由匹配
     if (pathname === '/api/sessions' && req.method === 'POST') return this.routeCreateSession(req, res)
     if (pathname === '/api/sessions' && req.method === 'GET')  return this.routeListSessions(res)
+    if (pathname?.match(/^\/api\/sessions\/[^/]+\/resume$/) && req.method === 'POST') return this.routeResumeSession(req, res, pathname)
+    if (pathname?.match(/^\/api\/sessions\/[^/]+\/messages$/) && req.method === 'GET') return this.routeGetMessages(res, pathname)
     if (pathname?.match(/^\/api\/sessions\/[^/]+$/) && req.method === 'DELETE') return this.routeDeleteSession(pathname, res)
     if (pathname === '/health') {
       res.writeHead(200, { 'Content-Type': 'application/json' })
@@ -183,17 +192,77 @@ export class AgentServer {
   }
 
   private routeListSessions(res: any) {
-    const sessions = this.sessionManager.getAllSessions()
+    const activeSessions = this.sessionManager.getAllSessions()
+    const persistedIds = listPersistedSessions()
+
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({
-      sessions: sessions.map(s => ({
+      sessions: activeSessions.map(s => ({
         session_id: s.id,
         cwd: s.cwd,
+        status: 'active',
         created_at: s.createdAt,
         last_active_at: s.lastActiveAt,
-        connected_clients: this.connections.get(s.id)?.size ?? 0
-      }))
+        connected_clients: this.connections.get(s.id)?.size ?? 0,
+        message_count: s.messages.length
+      })),
+      persisted_session_ids: persistedIds.filter(id => !activeSessions.find(s => s.id === id))
     }))
+  }
+
+  private async routeResumeSession(req: any, res: any, pathname: string) {
+    try {
+      const sessionId = pathname.split('/')[3]
+
+      // 检查是否已在内存中
+      if (this.sessionManager.getSession(sessionId)) {
+        const config = getConfig()
+        res.writeHead(200, { 'Content-Type': 'application/json' })
+        res.end(JSON.stringify({
+          session_id: sessionId,
+          ws_url: `ws://localhost:${config.port}/ws?session=${sessionId}`,
+          status: 'already_active'
+        }))
+        return
+      }
+
+      let body = ''
+      for await (const chunk of req) body += chunk
+      const { cwd } = body ? JSON.parse(body) : {}
+
+      const session = await this.sessionManager.createSession({
+        cwd: cwd ?? getConfig().workspaceRoot,
+        resumeSessionId: sessionId
+      })
+
+      const config = getConfig()
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({
+        session_id: session.id,
+        ws_url: `ws://localhost:${config.port}/ws?session=${session.id}`,
+        message_count: session.messages.length,
+        status: 'resumed'
+      }))
+    } catch (e: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: e.message }))
+    }
+  }
+
+  private async routeGetMessages(res: any, pathname: string) {
+    try {
+      const sessionId = pathname.split('/')[3]
+
+      // 优先从内存取，否则从磁盘加载
+      const session = this.sessionManager.getSession(sessionId)
+      const messages = session ? session.messages : await loadMessages(sessionId)
+
+      res.writeHead(200, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ session_id: sessionId, messages, count: messages.length }))
+    } catch (e: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' })
+      res.end(JSON.stringify({ error: e.message }))
+    }
   }
 
   private async routeDeleteSession(pathname: string, res: any) {
