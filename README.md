@@ -141,6 +141,42 @@ npm run build
 npm start
 ```
 
+## Web 前端
+
+项目现在包含一个独立前端应用，位于 [`web/`](./web)。
+
+安装前端依赖：
+
+```bash
+cd web
+npm install
+```
+
+启动前端开发服务器：
+
+```bash
+npm run dev
+```
+
+或在项目根目录执行：
+
+```bash
+npm run web:dev
+```
+
+构建前端：
+
+```bash
+npm run web:build
+```
+
+前端默认提供：
+
+- ChatGPT 风格的极简对话界面
+- 会话列表 / 恢复历史会话 / 删除会话
+- 内联展示 `thinking`、工具调用、工具结果、权限请求
+- 设置抽屉，用于配置服务地址、Bearer Token、默认工作目录
+
 ## 配置说明
 
 主配置文件是 [`config/server.config.json`](./config/server.config.json)。
@@ -481,12 +517,12 @@ Authorization: Bearer <token>
 但需要注意一个现实限制：
 
 - 浏览器原生 `WebSocket` API 不能像 `fetch` 一样方便地设置 `Authorization: Bearer ...` 头
-- 当前服务端在启用 `AUTH_TOKEN` 时，会要求 WebSocket Upgrade 带 `Authorization` 头
+- 因此前端和浏览器测试页会在 WebSocket URL 上附带 `auth_token=<token>` 查询参数
+- 服务端在启用 `AUTH_TOKEN` 时，接受以下任一方式：
+  - `Authorization: Bearer <token>` 头
+  - WebSocket URL 中的 `auth_token` 查询参数
 
-因此直接打开 `test/client.html` 做本地联调时，建议二选一：
-
-1. 本地开发时把 `AUTH_TOKEN` 设为空，临时关闭鉴权
-2. 使用能自定义 Upgrade 头的代理或非浏览器 WebSocket 客户端
+因此浏览器前端和 [`test/client.html`](./test/client.html) 都可以在保留鉴权的情况下直接联调。
 
 ## 开发建议
 

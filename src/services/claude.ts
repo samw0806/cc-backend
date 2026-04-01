@@ -1,4 +1,5 @@
-import Anthropic from '@anthropic-ai/sdk'
+import { Anthropic } from '@anthropic-ai/sdk'
+import type { MessageParam, Tool } from '@anthropic-ai/sdk/resources/messages'
 
 let client: Anthropic | null = null
 
@@ -18,7 +19,7 @@ function getClaudeClient(): Anthropic {
 }
 
 // 工具的 schema 定义（供 Claude API 使用）
-export const TOOLS: Anthropic.Tool[] = [
+export const TOOLS: Tool[] = [
   {
     name: 'Read',
     description: 'Read the contents of a file. Returns line-numbered output.',
@@ -123,7 +124,7 @@ export type StreamChunk =
   | { type: 'error'; error: string }
 
 export async function* streamChat(
-  messages: Anthropic.MessageParam[],
+  messages: MessageParam[],
   systemPrompt?: string,
   model?: string
 ): AsyncGenerator<StreamChunk> {

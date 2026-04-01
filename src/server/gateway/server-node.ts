@@ -4,7 +4,8 @@ import { parse } from 'url'
 import { SessionManager } from '../session/SessionManager.js'
 import { RemotePermissionHandler } from '../permissions/RemotePermissionHandler.js'
 import { loadServerConfig, getConfig } from '../config.js'
-import { loadMessages, listPersistedSessions } from '../../services/sessionStorage.js'
+import { isUpgradeRequestAuthorized } from '../auth.js'
+import { deriveSessionTitle, loadMessages, listPersistedSessionSummaries, listPersistedSessions } from '../../services/sessionStorage.js'
 import { mkdirSync, existsSync } from 'fs'
 
 export class AgentServer {
@@ -39,13 +40,10 @@ export class AgentServer {
       if (pathname === '/ws') {
         // 检查 Auth Token（与 HTTP 路由一致）
         const config = getConfig()
-        if (config.authToken) {
-          const auth = req.headers['authorization']
-          if (!auth || auth !== `Bearer ${config.authToken}`) {
-            socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
-            socket.destroy()
-            return
-          }
+        if (!isUpgradeRequestAuthorized(req.headers['authorization'], query.auth_token, config.authToken)) {
+          socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n')
+          socket.destroy()
+          return
         }
 
         const sessionId = query.session as string
@@ -204,20 +202,24 @@ export class AgentServer {
 
   private routeListSessions(res: any) {
     const activeSessions = this.sessionManager.getAllSessions()
+    const activeSessionIds = activeSessions.map(s => s.id)
     const persistedIds = listPersistedSessions()
+    const persistedSessions = listPersistedSessionSummaries(activeSessionIds)
 
     res.writeHead(200, { 'Content-Type': 'application/json' })
     res.end(JSON.stringify({
       sessions: activeSessions.map(s => ({
         session_id: s.id,
+        title: deriveSessionTitle(s.messages, s.id),
         cwd: s.cwd,
         status: 'active',
         created_at: s.createdAt,
         last_active_at: s.lastActiveAt,
         connected_clients: this.connections.get(s.id)?.size ?? 0,
         message_count: s.messages.length
-      })),
-      persisted_session_ids: persistedIds.filter(id => !activeSessions.find(s => s.id === id))
+      })).sort((a, b) => b.last_active_at - a.last_active_at),
+      persisted_sessions: persistedSessions,
+      persisted_session_ids: persistedIds.filter(id => !activeSessionIds.includes(id))
     }))
   }
 

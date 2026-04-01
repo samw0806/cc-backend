@@ -1,5 +1,6 @@
 import { randomUUID } from 'crypto'
 import type Anthropic from '@anthropic-ai/sdk'
+import type { ContentBlock, MessageParam, ToolResultBlockParam, ToolUseBlock } from '@anthropic-ai/sdk/resources/messages'
 import type { SessionContext, SDKMessage } from '../../core/types.js'
 import { streamChat } from '../../services/claude.js'
 import { executeTool } from '../../tools/executor.js'
@@ -136,10 +137,10 @@ export class SessionManager {
       turn++
       broadcast({ type: 'status', status: 'thinking' })
 
-      const currentAssistantContent: Anthropic.ContentBlock[] = []
+      const currentAssistantContent: ContentBlock[] = []
       let stopReason = 'end_turn'
 
-      for await (const chunk of streamChat(session.messages as Anthropic.MessageParam[], undefined, config.model)) {
+      for await (const chunk of streamChat(session.messages as MessageParam[], undefined, config.model)) {
         if (chunk.type === 'text') {
           const last = currentAssistantContent[currentAssistantContent.length - 1]
           if (last && last.type === 'text') {
@@ -156,7 +157,7 @@ export class SessionManager {
             id: chunk.toolUseId,
             name: chunk.toolName,
             input: chunk.toolInput
-          } as Anthropic.ToolUseBlock)
+          } as ToolUseBlock)
           broadcast({
             type: 'tool_use',
             tool_name: chunk.toolName,
@@ -184,7 +185,7 @@ export class SessionManager {
       }
 
       // ── 执行所有工具 ────────────────────────────────────────────────────
-      const toolResultContent: Anthropic.ToolResultBlockParam[] = []
+      const toolResultContent: ToolResultBlockParam[] = []
 
       for (const block of currentAssistantContent) {
         if (block.type !== 'tool_use') continue

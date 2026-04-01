@@ -6,9 +6,12 @@
   "scripts": {
     "dev": "node --loader ts-node/esm src/server/index.ts",
     "dev:bun": "bun run src/server/index.ts",
-    "test": "npm run build && node test/env-loading.test.mjs && node test/claude-client.test.mjs",
+    "test": "npm run build && node test/env-loading.test.mjs && node test/claude-client.test.mjs && node test/session-summaries.test.mjs && node test/ws-auth.test.mjs",
     "build": "tsc",
-    "start": "node dist/server/index.js"
+    "start": "node dist/server/index.js",
+    "web:dev": "npm run dev --prefix web",
+    "web:build": "npm run build --prefix web",
+    "web:test": "npm run test --prefix web"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.32.1",

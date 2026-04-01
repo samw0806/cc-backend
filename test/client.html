@@ -333,7 +333,10 @@
         addMessage('status', `会话已创建: ${sessionId}`, data)
 
         // 连接 WebSocket
-        const wsUrl = data.ws_url
+        const wsUrl = new URL(data.ws_url)
+        if (authToken) {
+          wsUrl.searchParams.set('auth_token', authToken)
+        }
         ws = new WebSocket(wsUrl)
 
         ws.onopen = () => {
@@ -384,7 +387,7 @@
     }
 
     function handlePermissionRequest(message) {
-      const allow = confirm(`允许执行工具 ${message.request.tool_name}?\n\n输入: ${JSON.stringify(message.request.tool_input, null, 2)}`)
+      const allow = confirm(`允许执行工具 ${message.tool_name}?\n\n输入: ${JSON.stringify(message.tool_input, null, 2)}`)
 
       ws.send(JSON.stringify({
         type: 'control_response',
