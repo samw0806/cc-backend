@@ -1,8 +1,21 @@
 import Anthropic from '@anthropic-ai/sdk'
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY
-})
+let client: Anthropic | null = null
+
+export function createClaudeClient(): Anthropic {
+  return new Anthropic({
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    baseURL: process.env.ANTHROPIC_BASE_URL
+  })
+}
+
+function getClaudeClient(): Anthropic {
+  if (!client) {
+    client = createClaudeClient()
+  }
+
+  return client
+}
 
 // 工具的 schema 定义（供 Claude API 使用）
 export const TOOLS: Anthropic.Tool[] = [
@@ -115,7 +128,7 @@ export async function* streamChat(
   model?: string
 ): AsyncGenerator<StreamChunk> {
   try {
-    const stream = client.messages.stream({
+    const stream = getClaudeClient().messages.stream({
       model: model ?? 'claude-opus-4-6',
       max_tokens: 8192,
       messages,

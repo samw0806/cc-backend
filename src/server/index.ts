@@ -1,8 +1,14 @@
-import { AgentServer } from './gateway/server-node.js'
+import { loadEnvFile } from './env.js'
 
 async function main() {
+  const envPath = loadEnvFile()
+  const { AgentServer } = await import('./gateway/server-node.js')
+
   console.log('🚀 Claude Agent Server')
   console.log('======================')
+  if (envPath) {
+    console.log(`[Main] Loaded environment from ${envPath}`)
+  }
 
   const server = new AgentServer()
 

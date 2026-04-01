@@ -84,11 +84,16 @@ HOST=0.0.0.0
 AUTH_TOKEN=dev-token-change-in-production
 WORKSPACE_ROOT=/tmp/claude-workspaces
 ANTHROPIC_API_KEY=your-api-key-here
+ANTHROPIC_BASE_URL=https://api.anthropic.com
 ```
 
 至少需要设置：
 
 - `ANTHROPIC_API_KEY`
+
+如果你走代理网关或兼容 Anthropic 接口的中转服务，也可以同时设置：
+
+- `ANTHROPIC_BASE_URL`
 
 鉴权相关说明：
 
@@ -97,9 +102,15 @@ ANTHROPIC_API_KEY=your-api-key-here
 
 可选环境变量：
 
+- `ANTHROPIC_BASE_URL`：覆盖默认 Anthropic API 地址，适用于代理或自建网关
 - `MODEL`：覆盖默认模型；未设置时，代码内默认使用 `claude-opus-4-6`
 - `MAX_SESSIONS`
 - `SESSION_TIMEOUT_MS`
+
+环境变量加载说明：
+
+- 服务启动时会自动读取项目根目录下的 `.env`
+- 如果你已经在 shell 中 `export` 了同名变量，shell 里的值优先，不会被 `.env` 覆盖
 
 ### 3. 启动开发服务器
 

@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node --loader ts-node/esm src/server/index.ts",
     "dev:bun": "bun run src/server/index.ts",
+    "test": "npm run build && node test/env-loading.test.mjs && node test/claude-client.test.mjs",
     "build": "tsc",
     "start": "node dist/server/index.js"
   },
